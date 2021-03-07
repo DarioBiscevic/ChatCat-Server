@@ -1,30 +1,31 @@
 use std::net::TcpStream;
 use std::thread;
+use std::sync::{Mutex, Arc};
+use std::time::{Duration};
 
 use std::io::prelude::*;
 
 ///Struct that holds the connection between a user and the server
 pub struct UserConnection{
 	pub id:       usize,
-	pub is_alive: bool,
 	connection:   thread::JoinHandle<()>,
 }
 
 impl UserConnection{
 	
-	pub fn new(mut stream: TcpStream, id: usize) -> Self{
+	pub fn new(mut stream: TcpStream, id: usize, ids_to_remove: Arc<Mutex<Vec<usize>>>) -> Self{
+		
+		let list_ids = ids_to_remove.clone();
+		
 		UserConnection{
-			id: id,
+			id,
 			
-			is_alive: true,
-			
-			/* 
-			 * Somehow, when the thread finishes, i.e. the connection is terminated,
-			 * is_alive must become false. But how?
-			 */
-			connection: thread::spawn(||{
+			connection: thread::spawn(move ||{
+				//After the connection function finishes, queue the user 
 				handle_connection(stream);
 				
+				let mut list = list_ids.lock().unwrap();
+				list.push(id);
 			})
 		}
 	}
@@ -33,9 +34,6 @@ impl UserConnection{
 
 //TODO: add error handling
 fn handle_connection(mut stream: TcpStream){
-	/* CONNECTION TEST SNIPPET */
-	
-	println!("'handle_connection' activated; reading in");
 	
 	let mut buffer = [0; 512];
 	
